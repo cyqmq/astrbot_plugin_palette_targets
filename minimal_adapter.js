@@ -22,9 +22,11 @@
   var BACKGROUND_ENDPOINT = "background-url";
   var INFO_ENDPOINT = "background-info";
   var STYLE_ID = "astrbot-palette-glass";
-  var POLL_INTERVAL_MS = 10000;
+  // 仅页面可见时轮询（轻量 background-info，几字节）；隐藏时零请求。
+  var POLL_INTERVAL_MS = 30000;
 
   var current = { name: "", primary: "", secondary: "" };
+  var pollTimer = null;
 
   function setThemeVars(theme) {
     var de = document.documentElement;
@@ -127,21 +129,43 @@
       });
   }
 
-  function startPolling() {
-    setTimeout(function poll() {
+  function schedulePoll() {
+    // 页面隐藏时不轮询，恢复可见时由 visibilitychange 重新调度。
+    if (document.hidden) {
+      return;
+    }
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+    }
+    pollTimer = setTimeout(function poll() {
       checkAndRefresh().then(function () {
-        setTimeout(poll, POLL_INTERVAL_MS);
+        if (!document.hidden) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+        } else {
+          pollTimer = null;
+        }
       });
     }, POLL_INTERVAL_MS);
   }
 
   function onVisibilityChange() {
-    if (!document.hidden) {
-      checkAndRefresh();
+    if (document.hidden) {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      return;
     }
+    // 恢复可见：立即检测一次（主插件同款行为），再恢复兜底轮询。
+    checkAndRefresh().then(schedulePoll);
   }
 
   document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("focus", function () {
+    if (!document.hidden) {
+      checkAndRefresh().then(schedulePoll);
+    }
+  });
 
   whenBridge().then(function (bridge) {
     if (!bridge) {
@@ -155,6 +179,6 @@
       .catch(function () {
         /* 无附属插件：保持插件原样 */
       });
-    loadBackground().then(startPolling);
+    loadBackground().then(schedulePoll);
   });
 })();

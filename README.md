@@ -188,6 +188,14 @@ register_palette_glass_proxy(self.context, PLUGIN_NAME)
 - **未安装本附属插件**：`minimal_adapter.py` 返回 `{"css":""}` / `{"url":""}`，
   接入器检测到空值后跳过，页面保持原本外观，零影响。
 
+**配置变化同步策略**（低开销）：
+- `minimal_adapter.js` 在**页面可见时**每 30 秒请求一次轻量
+  `background-info`（几字节 JSON：背景名 + 主题色），检测到变化才重新
+  拉取含 base64 的 `background-url`；
+- 页面**隐藏时零请求**，恢复可见时立即检测并刷新（与调色盘主插件的
+  `visibilitychange` 行为一致）；
+- 两个标签页同时可见时，最长 30 秒内自动同步背景/主题变化。
+
 `glass.css` 使用 CSS 变量 + fallback：
 - 有 Vuetify 主题变量（`--v-theme-surface` 等）时跟随调色盘主题；
 - 没有时按 `prefers-color-scheme` 自动退化浅色/深色默认值。
