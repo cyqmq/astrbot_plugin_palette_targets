@@ -133,23 +133,78 @@ def _resolve_dashboard_target(paths, *, allow_copy_fallback):
 推荐方案：**附属插件持有全部解析逻辑，其他插件只内嵌一个最小接入器**，
 避免每个插件复制完整客户端导致臃肿。
 
-### 方式 C（推荐）：前端毛玻璃自动注入，约 20 行 JS
+### 方式 C（推荐）：前端毛玻璃自动注入
 
 如果你的插件有**视图页面**（`views/<视图名>/index.html`，AstrBot 以 iframe
-加载），想让页面透出调色盘壁纸，只需复制 **`minimal_adapter.js`** 到你的
-`views/<视图名>/` 目录，并在 `index.html` 中引入：
+加载），想让页面透出调色盘壁纸（卡片半透明 + 毛玻璃），只需：
 
-```html
-<script src="./minimal_adapter.js"></script>
+1. 复制 **`minimal_adapter.js`**（约 45 行）到你的 `views/<视图名>/` 目录；
+2. 在 `index.html` 中引入：
+   ```html
+   <script src="./minimal_adapter.js"></script>
+   ```
+3. 在你的插件 `main.py` 中注册**两个代理路由**（`glass.css` 和
+   `background-url`），转发到本附属插件的 Python API。
+
+为什么需要代理路由：AstrBot 插件视图 iframe 的 `bridge.apiGet` 只会请求
+**当前插件自己的扩展路由**（自动拼接 `/plugins/extensions/<当前插件>/`
+前缀），无法跨插件调用。因此由宿主插件注册同名路由，后端直接调用
+`astrbot_plugin_palette_targets` 的 Python API（未安装时返回空串）。
+
+参考实现（monkeycode 已按此接入）：
+
+```python
+# main.py 的 _register_web_apis() 中新增：
+self.context.register_web_api(
+    f"/{PLUGIN_NAME}/glass.css",
+    self.view_glass_css,
+    ["GET"],
+    "获取调色盘毛玻璃样式（代理 palette_targets）",
+)
+self.context.register_web_api(
+    f"/{PLUGIN_NAME}/background-url",
+    self.view_background_url,
+    ["GET"],
+    "获取调色盘背景图 data URL（代理 palette_targets）",
+)
+
+# 处理函数：
+async def view_glass_css(self):
+    try:
+        from data.plugins.astrbot_plugin_palette_targets.targets import get_glass_css
+    except Exception:
+        try:
+            from astrbot_plugin_palette_targets.targets import get_glass_css
+        except Exception:
+            return json_response({"css": ""})
+    try:
+        return json_response({"css": get_glass_css()})
+    except Exception:
+        return json_response({"css": ""})
+
+async def view_background_url(self):
+    try:
+        from data.plugins.astrbot_plugin_palette_targets.targets import (
+            get_background_data_url,
+        )
+    except Exception:
+        try:
+            from astrbot_plugin_palette_targets.targets import get_background_data_url
+        except Exception:
+            return json_response({"url": ""})
+    try:
+        return json_response({"url": get_background_data_url()})
+    except Exception:
+        return json_response({"url": ""})
 ```
 
 行为：
-- **已安装 `astrbot_plugin_palette_targets`**：自动请求 `glass.css`
-  （通用毛玻璃样式），注入到你的页面，section/输入框等组件变为
-  半透明 + `backdrop-filter`，透出壁纸。
-- **未安装本附属插件**：请求返回 `application/json` 错误，
-  接入器检测 content-type 不是 `text/css` 后静默失败，页面保持原本外观，
-  零影响。
+- **已安装 `astrbot_plugin_palette_targets`**：`minimal_adapter.js` 通过
+  bridge 请求宿主插件的 `/glass.css` 与 `/background-url`，注入毛玻璃样式，
+  并把调色盘壁纸（base64 data URL）设置为页面 body 背景，卡片半透明 +
+  `backdrop-filter` 生效。
+- **未安装本附属插件**：宿主插件代理返回 `{"css":""}` / `{"url":""}`，
+  接入器检测到空值后跳过，页面保持原本外观，零影响。
 
 `glass.css` 使用 CSS 变量 + fallback：
 - 有 Vuetify 主题变量（`--v-theme-surface` 等）时跟随调色盘主题；
