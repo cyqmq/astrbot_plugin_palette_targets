@@ -6,18 +6,28 @@
 - Python API：from astrbot_plugin_palette_targets.targets import (
                   get_dashboard_targets, get_recommended_target)
 
-这样主插件不再需要硬编码 data/dist/index.html 的解析逻辑。
+还提供「毛玻璃注入」能力，供其他插件视图自动适配调色盘壁纸：
+- HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/glass.css
+  返回通用毛玻璃样式。
+- 其他插件只需在视图 index.html 引入 minimal_adapter.js（约 20 行），
+  有本插件时自动注入毛玻璃，没有时保持插件原本外观。
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.star import Context, Star, register
-from astrbot.api.web import json_response, request
+from astrbot.api.web import json_response, request, stream_response
 
 from .targets import get_dashboard_targets, get_recommended_target
 
 PLUGIN_NAME = "astrbot_plugin_palette_targets"
 ROUTE_PREFIX = f"/{PLUGIN_NAME}"
+
+_GLASS_CSS = (
+    Path(__file__).with_name("glass.css").read_text(encoding="utf-8")
+)
 
 
 @register(
@@ -41,6 +51,24 @@ class PaletteTargetsPlugin(Star):
             self.dashboard_recommended,
             ["GET"],
             "获取 AstrBot Dashboard 推荐入口",
+        )
+        context.register_web_api(
+            f"{ROUTE_PREFIX}/glass.css",
+            self.glass_css,
+            ["GET"],
+            "获取通用毛玻璃样式（供其他插件视图注入）",
+        )
+
+    async def glass_css(self):
+        """返回通用毛玻璃样式表（text/css）。
+
+        其他插件的 minimal_adapter.js 请求本接口，成功则注入样式，
+        失败（本插件未安装）则保持插件原本外观。
+        """
+        return stream_response(
+            [_GLASS_CSS],
+            content_type="text/css; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
         )
 
     async def dashboard_targets(self):

@@ -1,0 +1,50 @@
+/*
+ * astrbot_plugin_palette_targets 提供的通用毛玻璃样式。
+ * 其他插件通过 minimal_adapter.js 自动注入本文件到自己的视图页面。
+ * 使用 CSS 变量 + fallback，未安装调色盘主题变量时自动退化为浅/深色默认值。
+ */
+
+body {
+  background: transparent !important;
+}
+
+section,
+.card,
+.panel {
+  background-color: rgba(var(--v-theme-surface, 255 255 255), 0.55) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface, 0 0 0), 0.12) !important;
+  border-radius: 10px;
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+select,
+textarea {
+  background: rgba(var(--v-theme-background, 255 255 255), 0.7) !important;
+  border: 1px solid var(--v-theme-outline, rgba(0 0 0 / 0.12)) !important;
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  section,
+  .card,
+  .panel {
+    background-color: rgba(28, 28, 32, 0.55) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="email"],
+  select,
+  textarea {
+    background: rgba(18, 18, 20, 0.7) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+}
