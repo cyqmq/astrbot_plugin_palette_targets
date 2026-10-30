@@ -29,7 +29,8 @@
   try {
     fetch(GLAS_CSS_URL, { cache: "no-cache" })
       .then(function (resp) {
-        if (!resp.ok) {
+        var type = (resp.headers.get("content-type") || "").toLowerCase();
+        if (!resp.ok || type.indexOf("text/css") !== 0) {
           throw new Error("companion plugin not available");
         }
         return resp.text();
