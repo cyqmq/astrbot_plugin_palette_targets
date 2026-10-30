@@ -17,7 +17,7 @@ from astrbot.api.web import json_response, request
 from .targets import get_dashboard_targets, get_recommended_target
 
 PLUGIN_NAME = "astrbot_plugin_palette_targets"
-ROUTE_PREFIX = f"/api/v1/plugins/extensions/{PLUGIN_NAME}"
+ROUTE_PREFIX = f"/{PLUGIN_NAME}"
 
 
 @register(
