@@ -8,16 +8,19 @@
  *
  * 行为：
  *   - 注入通用毛玻璃样式（glass.css），卡片/输入框半透明 + backdrop-filter；
- *   - 获取调色盘当前背景图（base64 data URL）与主题色，设置为页面背景和
- *     CSS 变量；
- *   - 每 10 秒轮询 background-info + 页面重新可见时检测：调色盘背景/主题
- *     变化后自动刷新，毛玻璃效果跟随调色盘配置；
- *   - 未安装 astrbot_plugin_palette_targets：请求返回空值，静默失败，
- *     页面保持插件原本外观，零影响。
+ *   - 获取调色盘当前背景图（base64 data URL）设置为页面背景；
+ *   - 通过主文档桥接脚本（bridge.js）读取与原版 UI 完全一致的 Vuetify
+ *     主题 CSS 变量（--v-theme-surface / on-surface / primary 等），
+ *     应用到 iframe 内，使毛玻璃效果与原版一致并跟随调色盘配置；
+ *   - 事件驱动：主文档桥接脚本转发调色盘配置变化广播后立即刷新，
+ *     并关闭自动轮询；
+ *   - 未安装 astrbot_plugin_palette_targets 或 bridge 不可用时，
+ *     请求返回空值/静默失败，页面保持插件原本外观，零影响。
  */
 (function () {
   "use strict";
 
+  var MSG_CHANNEL = "astrbot-palette-targets";
   var GLASS_ENDPOINT = "glass.css";
   var BACKGROUND_ENDPOINT = "background-url";
   var INFO_ENDPOINT = "background-info";
@@ -30,16 +33,27 @@
   // 收到主文档桥接脚本转发的广播后置为 true，关闭自动轮询（事件驱动）。
   var eventDriven = false;
 
-  function setThemeVars(theme) {
+  var THEME_VAR_MAP = {
+    primary: "--v-theme-primary",
+    secondary: "--v-theme-secondary",
+    darkprimary: "--v-theme-darkprimary",
+    darksecondary: "--v-theme-darksecondary",
+    surface: "--v-theme-surface",
+    onSurface: "--v-theme-on-surface",
+    background: "--v-theme-background",
+    onBackground: "--v-theme-on-background",
+    containerBg: "--v-theme-containerBg",
+  };
+
+  function applyThemeVars(theme) {
     var de = document.documentElement;
     if (!theme) {
       return;
     }
-    if (theme.primary) {
-      de.style.setProperty("--v-theme-primary", theme.primary);
-    }
-    if (theme.secondary) {
-      de.style.setProperty("--v-theme-secondary", theme.secondary);
+    for (var key in THEME_VAR_MAP) {
+      if (theme[key]) {
+        de.style.setProperty(THEME_VAR_MAP[key], theme[key]);
+      }
     }
   }
 
@@ -63,7 +77,7 @@
     document.body.style.backgroundPosition = "center center";
     document.body.style.backgroundAttachment = "fixed";
     document.body.style.backgroundColor = "transparent";
-    setThemeVars(data.theme);
+    applyThemeVars(data.theme);
     current.name = data.name || "";
     current.primary = (data.theme && data.theme.primary) || "";
     current.secondary = (data.theme && data.theme.secondary) || "";
@@ -131,6 +145,37 @@
       });
   }
 
+  function requestThemeFromParent() {
+    // 向主文档桥接脚本请求与原版 UI 一致的主题 CSS 变量。
+    try {
+      window.parent.postMessage(
+        { channel: MSG_CHANNEL, kind: "get-theme" },
+        "*"
+      );
+    } catch (e) {
+      /* 忽略 */
+    }
+  }
+
+  function handleParentMessage(event) {
+    var msg = event.data;
+    if (!msg || msg.channel !== MSG_CHANNEL) {
+      return;
+    }
+    if (msg.kind === "theme" && msg.theme) {
+      applyThemeVars(msg.theme);
+    } else if (msg.kind === "refresh") {
+      // 收到广播：关闭自动轮询，事件驱动接管，立即刷新并重新读取主题。
+      eventDriven = true;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      loadBackground();
+      requestThemeFromParent();
+    }
+  }
+
   function schedulePoll() {
     // 页面隐藏时或不轮询（事件驱动已接管）：跳过。
     if (document.hidden || eventDriven) {
@@ -169,21 +214,8 @@
     }
   });
 
-  // 主文档桥接脚本（bridge.js）转发的配置变化广播。
-  window.addEventListener("message", function (event) {
-    var msg = event.data;
-    if (msg && msg.channel === "astrbot-palette-targets") {
-      if (msg.kind === "refresh") {
-        // 收到广播：关闭自动轮询，事件驱动接管，立即刷新。
-        eventDriven = true;
-        if (pollTimer) {
-          clearTimeout(pollTimer);
-          pollTimer = null;
-        }
-        loadBackground();
-      }
-    }
-  });
+  // 主文档桥接脚本（bridge.js）的响应与广播。
+  window.addEventListener("message", handleParentMessage);
 
   whenBridge().then(function (bridge) {
     if (!bridge) {
@@ -198,5 +230,6 @@
         /* 无附属插件：保持插件原样 */
       });
     loadBackground().then(schedulePoll);
+    requestThemeFromParent();
   });
 })();

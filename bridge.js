@@ -48,4 +48,49 @@
       notifyFrames();
     }
   });
+
+  function readThemeVariables() {
+    // 与原版 UI 使用同一套 Vuetify 主题变量（含调色盘注入后的覆盖值）。
+    var root =
+      document.querySelector(".v-theme--PurpleTheme, .v-theme--PurpleThemeDark") ||
+      document.documentElement;
+    var cs = getComputedStyle(root);
+    function read(name) {
+      try {
+        return cs.getPropertyValue(name).trim();
+      } catch (e) {
+        return "";
+      }
+    }
+    return {
+      primary: read("--v-theme-primary"),
+      secondary: read("--v-theme-secondary"),
+      darkprimary: read("--v-theme-darkprimary"),
+      darksecondary: read("--v-theme-darksecondary"),
+      surface: read("--v-theme-surface"),
+      onSurface: read("--v-theme-on-surface"),
+      background: read("--v-theme-background"),
+      onBackground: read("--v-theme-on-background"),
+      containerBg: read("--v-theme-containerBg"),
+    };
+  }
+
+  // 响应插件视图 iframe 的主题变量请求。
+  window.addEventListener("message", function (event) {
+    var msg = event.data;
+    if (msg && msg.channel === MSG_CHANNEL && msg.kind === "get-theme" && event.source) {
+      try {
+        event.source.postMessage(
+          {
+            channel: MSG_CHANNEL,
+            kind: "theme",
+            theme: readThemeVariables(),
+          },
+          "*"
+        );
+      } catch (e) {
+        /* 忽略 */
+      }
+    }
+  });
 })();
