@@ -164,13 +164,15 @@ cp .../astrbot_plugin_palette_targets/minimal_adapter.py \
 在插件类的 `__init__` 中（已有 `self.context`）加：
 
 ```python
-from minimal_adapter import register_palette_glass_proxy
+from .minimal_adapter import register_palette_glass_proxy
 
 register_palette_glass_proxy(self.context, PLUGIN_NAME)
 ```
 
 `PLUGIN_NAME` 是你的插件唯一标识名（与 `@register` 的第一个参数一致，
-如 `astrbot_plugin_monkeycode`）。
+如 `astrbot_plugin_monkeycode`）。注意必须用**相对导入**（`from .minimal_adapter`），
+因为 AstrBot 插件以 `data.plugins.<插件名>.main` 加载，`minimal_adapter.py`
+与 `main.py` 同属一个包。
 
 **为什么需要代理路由**：AstrBot 插件视图 iframe 的 `bridge.apiGet` 只会请求
 **当前插件自己的扩展路由**（自动拼接 `/plugins/extensions/<当前插件>/`
