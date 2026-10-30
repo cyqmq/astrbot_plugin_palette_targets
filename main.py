@@ -34,6 +34,7 @@ from .targets import (
     get_palette_theme,
     get_recommended_target,
 )
+from .auto_patch import ensure_palette_patch
 
 PLUGIN_NAME = "astrbot_plugin_palette_targets"
 ROUTE_PREFIX = f"/{PLUGIN_NAME}"
@@ -199,6 +200,8 @@ class PaletteTargetsPlugin(Star):
             ["GET"],
             "获取调色盘背景名与主题色（轻量，供检测变化）",
         )
+        # 自动给主插件 palette 打接入补丁（幂等，省去手动编辑）
+        ensure_palette_patch()
         ensure_bridge_injection()
 
     async def bridge_js(self):
