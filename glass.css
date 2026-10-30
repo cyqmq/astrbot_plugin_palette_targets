@@ -2,11 +2,11 @@
  * astrbot_plugin_palette_targets 提供的通用毛玻璃样式。
  * 其他插件通过 minimal_adapter.js 自动注入本文件到自己的视图页面。
  * 使用 CSS 变量 + fallback，未安装调色盘主题变量时自动退化为浅/深色默认值。
+ *
+ * 注意：body 的背景图由 minimal_adapter.js 通过 inline style 设置
+ * （iframe 内 backdrop-filter 无法跨文档模糊父页面壁纸），
+ * 因此本文件不写 body background 规则，避免覆盖。
  */
-
-body {
-  background: transparent !important;
-}
 
 section,
 .card,
