@@ -1,0 +1,99 @@
+================================================================
+astrbot_plugin_palette 接入附属插件补丁指南
+================================================================
+目标：主插件不再硬编码 data/dist/index.html 的解析逻辑，
+      改为调用附属插件 astrbot_plugin_palette_targets 暴露的 API
+      获取 Dashboard 目标列表。
+
+附属插件暴露两种 API：
+  - Python API：get_dashboard_targets() / get_recommended_target()
+  - HTTP API：GET .../dashboard-targets
+
+推荐使用 Python API（同进程、无需鉴权、无网络开销）。
+
+================================================================
+一、修改 palette/injector.py
+================================================================
+1. 文件顶部（imports 之后）增加可选导入：
+
+    try:
+        from astrbot_plugin_palette_targets.targets import (
+            get_dashboard_targets,
+            get_recommended_target,
+        )
+    except Exception:  # 未安装附属插件时回退内部逻辑
+        get_dashboard_targets = None
+        get_recommended_target = None
+
+2. 在 _resolve_dashboard_target 函数开头增加附属插件优先分支：
+
+    def _resolve_dashboard_target(
+        paths: PalettePaths,
+        *,
+        allow_copy_fallback: bool,
+    ) -> DashboardTarget | None:
+        # 优先调用附属插件暴露的 API 获取推荐目标
+        if get_recommended_target is not None:
+            try:
+                rec = get_recommended_target()
+                if rec is not None:
+                    return DashboardTarget(
+                        dist=Path(rec["dist"]),
+                        index=Path(rec["index"]),
+                        source=rec["source"],
+                        compatible=rec["compatible"],
+                        restart_required=bool(rec.get("restart_required", False)),
+                        fallback_target=rec.get("fallback_target", "") or "",
+                    )
+            except Exception:
+                # 附属插件解析失败：回退到原有内部逻辑
+                pass
+
+        # ... 原有逻辑保持不变（作为回退） ...
+        custom_dist = _custom_dashboard_dist()
+        ...
+
+3. 说明：
+   - 附属插件已实现与主插件一致的选择策略（优先兼容的 data/dist，
+     其次 bundled / resolved / custom）。
+   - 返回的 rec 是 dict（JSON 序列化），转回 DashboardTarget 即可。
+   - 若附属插件未安装，get_recommended_target 为 None，走原逻辑，行为不变。
+
+================================================================
+二、可选：改用 HTTP API（跨进程/调试场景）
+================================================================
+主插件后端可通过 httpx 调用本地 AstrBot HTTP API（需处理鉴权）：
+
+    import httpx
+    resp = httpx.get(
+        "http://127.0.0.1:<port>/api/v1/plugins/extensions/"
+        "astrbot_plugin_palette_targets/dashboard-targets",
+        cookies={...会话 Cookie...},
+        timeout=5,
+    )
+    data = resp.json()["data"]["targets"]
+
+说明：
+- AstrBot 的 register_web_api 路由需要浏览器会话 Cookie。
+- 服务端到服务端调用需要先获取会话，较繁琐。
+- 因此推荐优先使用 Python API（同进程直接 import）。
+
+================================================================
+三、效果
+================================================================
+- 主插件 palette 不再维护 data/dist/bundled/argv 的解析细节，
+  这些集中到附属插件，未来 AstrBot 版本变化只需改附属插件。
+- 多个美化类插件可复用同一份目标发现结果，避免各自硬编码。
+- 未安装附属插件时行为完全不变（向后兼容）。
+
+================================================================
+四、验证步骤
+================================================================
+1. 安装附属插件到 AstrBot data/plugins/astrbot_plugin_palette_targets
+2. 重载插件，确认插件列表出现「AstrBot 调色盘目标发现」
+3. 浏览器访问：
+   http://<astrbot>/api/v1/plugins/extensions/astrbot_plugin_palette_targets/dashboard-targets
+   应返回 JSON 目标列表
+4. 打上主插件补丁，重载 astrbot_plugin_palette
+5. 确认调色盘仍能正常注入背景（行为与之前一致）
+6. 卸载附属插件，确认主插件回退到原逻辑仍正常工作

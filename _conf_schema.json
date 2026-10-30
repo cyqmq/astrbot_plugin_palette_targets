@@ -1,0 +1,8 @@
+{
+  "log_level": {
+    "description": "日志级别",
+    "type": "string",
+    "default": "INFO",
+    "options": ["DEBUG", "INFO", "WARNING", "ERROR"]
+  }
+}

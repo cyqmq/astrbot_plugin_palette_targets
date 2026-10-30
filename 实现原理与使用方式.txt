@@ -1,0 +1,176 @@
+================================================================
+astrbot_plugin_palette_targets 实现原理与使用方式
+================================================================
+版本：v0.1.0
+说明：AstrBot 调色盘目标发现附属插件。集中发现 AstrBot Dashboard 入口
+      （data/dist、内置 dist、自定义 --webui-dir），暴露 Python API 与
+      HTTP API，供主插件 astrbot_plugin_palette 及其他插件调用。
+
+================================================================
+一、解决的问题
+================================================================
+原 astrbot_plugin_palette 在 palette/injector.py 内部维护一套
+Dashboard 目标解析逻辑：
+  - data/dist（用户目录）
+  - bundled（AstrBot 内置 dist）
+  - custom（启动参数 --webui-dir）
+  - public resolver（AstrBot 4.27+ 公开解析器）
+这套逻辑与 AstrBot 版本强相关（4.26/4.27+ 导入不同函数），
+且只有 palette 自己用。
+
+附属插件把「目标发现」独立出来，让主插件不再硬编码
+data/dist/index.html，改为调用附属插件暴露的 API 获取目标列表。
+
+================================================================
+二、实现原理
+================================================================
+1. 目录结构
+   astrbot_plugin_palette_targets/
+   ├── main.py          插件入口，注册 HTTP API
+   ├── targets.py       核心解析逻辑（Python API）
+   ├── metadata.yaml    AstrBot 插件元数据
+   ├── _conf_schema.json
+   ├── README.md
+   └── requirements.txt（空，无额外依赖）
+
+2. targets.py 核心逻辑
+   - 版本兼容导入：
+       try:
+           from astrbot.core.dashboard_assets import resolve_dashboard_dist   # 4.27+
+       except ImportError:
+           resolve_dashboard_dist = None
+       try:
+           from astrbot.core.utils.io import (
+               get_bundled_dashboard_dist_path,
+               is_dashboard_dist_compatible,
+               should_use_bundled_dashboard_dist,
+           )                                                                    # 4.26
+       except ImportError:
+           ...
+     通过 try/except 兼容多个 AstrBot 版本。
+
+   - DashboardTarget dataclass：
+       dist / index / source / compatible / restart_required / fallback_target
+       提供 to_dict() 输出 JSON 可序列化 dict。
+
+   - get_dashboard_targets(custom_dist=None) -> list[dict]
+       依次收集：
+         a) public resolver 选中的目录（若可用）
+         b) data/dist（用户目录，若存在）
+         c) bundled（AstrBot 内置，若可获取）
+         d) custom（--webui-dir 或显式传入）
+       按 dist 路径去重。
+
+   - get_recommended_target(custom_dist=None) -> dict | None
+       选择策略（与原 palette 对齐）：
+         1) 优先 compatible=True 的 data/dist
+         2) 其次 compatible=True 的 resolved/bundled
+         3) 最后第一个可用目标
+
+3. main.py 插件入口
+   - @register 注册 Star 插件
+   - context.register_web_api 注册两个 HTTP 路由：
+       GET .../dashboard-targets
+       GET .../dashboard-targets/recommended
+   - handler 读取 request.query.get("webui_dir") 作为可选 custom_dist
+   - 返回 json_response({...})
+
+4. 与主插件的解耦
+   主插件 palette 的 _resolve_dashboard_target 改为：
+     先 try import 附属插件 Python API；
+     成功 -> 用返回 dict 构造自己的 DashboardTarget；
+     失败 -> 回退原有内部逻辑。
+   这样：
+   - 附属插件升级/修复只影响目标发现；
+   - 未安装附属插件时主插件行为完全不变；
+   - 其他美化插件可复用同一份目标列表。
+
+================================================================
+三、使用方式
+================================================================
+1. 安装
+   cd /path/to/AstrBot/data/plugins
+   git clone https://github.com/cyqmq/astrbot_plugin_palette_targets.git
+   然后在 AstrBot WebUI 重载插件。
+
+2. 验证 HTTP API（浏览器，带会话 Cookie）
+   GET http://<astrbot-host>/api/v1/plugins/extensions/astrbot_plugin_palette_targets/dashboard-targets
+   返回：
+   {
+     "targets": [
+       {
+         "dist": "/path/to/data/dist",
+         "index": "/path/to/data/dist/index.html",
+         "source": "data/dist",
+         "compatible": true,
+         "restart_required": false,
+         "fallback_target": ""
+       },
+       ...
+     ],
+     "error": null
+   }
+
+3. Python API（同进程插件调用）
+   from astrbot_plugin_palette_targets.targets import (
+       get_dashboard_targets,
+       get_recommended_target,
+   )
+   targets = get_dashboard_targets()       # list[dict]
+   target = get_recommended_target()        # dict | None
+
+================================================================
+四、其他插件接入原理
+================================================================
+任何需要知道 AstrBot Dashboard 入口的插件（美化类、注入类、统计类）
+都可以接入本附属插件：
+
+1. 方式 A：直接 import Python API（推荐，同进程）
+   try:
+       from astrbot_plugin_palette_targets.targets import get_recommended_target
+   except ImportError:
+       get_recommended_target = None
+
+   def resolve():
+       if get_recommended_target is not None:
+           t = get_recommended_target()
+           if t:
+               return Path(t["dist"]), Path(t["index"]), t["source"]
+       # 回退：自己的旧逻辑
+       ...
+
+   优点：无鉴权、无网络开销、天然与 AstrBot 同生命周期。
+   缺点：依赖附属插件已安装；需 try/except 回退。
+
+2. 方式 B：调用 HTTP API（跨进程/调试）
+   用 httpx 请求本插件路由，需要浏览器会话 Cookie。
+   优点：可跨进程；缺点：服务端到服务端需要会话，较繁琐。
+   适用：调试、外部脚本、微服务场景。
+
+3. 方式 C：复用 targets.py（拷贝逻辑）
+   直接把 targets.py 拷贝到自己的插件里（MIT 协议）。
+   优点：零依赖；缺点：多处维护。
+
+推荐：其他 AstrBot 插件使用方式 A，并在 README 提示用户
+「需同时安装 astrbot_plugin_palette_targets」。
+
+================================================================
+五、与其他模块的关系
+================================================================
+- 与 astrbot_plugin_palette：
+  附属插件只做「目标发现」，注入、媒体、主题色等仍在主插件。
+- 与 AstrBot 核心：
+  不修改任何 AstrBot 文件；通过公开 API（resolve_dashboard_dist 等）
+  读取信息，不写文件。
+- 与未来 AstrBot 版本：
+  AstrBot 核心 API 变化时，只需更新 targets.py 的兼容层，
+  所有接入插件自动受益。
+
+================================================================
+六、扩展方向
+================================================================
+1. 增加配置项：允许用户在插件配置里指定额外 dist 目录优先级。
+2. 返回更多字段：版本、上次修改时间、是否已注入（读取 marker）。
+3. 事件通知：dist 变化时推送事件给订阅插件。
+4. 多目标管理：支持多个 dashboard 实例（多开 AstrBot）。
+5. 提供 CLI 脚本：独立于 AstrBot 运行，供 CI/运维调用。

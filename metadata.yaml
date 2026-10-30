@@ -1,0 +1,7 @@
+name: astrbot_plugin_palette_targets
+display_name: AstrBot 调色盘目标发现
+desc: 供 astrbot_plugin_palette 调用：集中发现 AstrBot Dashboard 入口（data/dist、内置、自定义 --webui-dir），暴露 HTTP API 与 Python API 返回目标列表。
+version: v0.1.0
+author: cyqmq
+repo: https://github.com/cyqmq/astrbot_plugin_palette_targets
+astrbot_version: ">=4.26.0-beta1"
