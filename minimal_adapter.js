@@ -20,24 +20,29 @@
 (function () {
   "use strict";
 
-  var GLASS_ENDPOINT =
-    "plugins/extensions/astrbot_plugin_palette_targets/glass.css";
-  var BACKGROUND_ENDPOINT =
-    "plugins/extensions/astrbot_plugin_palette_targets/background-url";
+  // 父页面 apiGet 会自动拼接当前插件的扩展路由前缀
+  // （/api/v1/plugins/extensions/<当前插件>/<endpoint>），
+  // 因此这里传相对路径，由宿主插件注册同名代理路由。
+  var GLASS_ENDPOINT = "glass.css";
+  var BACKGROUND_ENDPOINT = "background-url";
   var STYLE_ID = "astrbot-palette-glass";
 
   function injectGlass(css) {
     if (!css || document.getElementById(STYLE_ID)) {
+      console.warn("[palette-adapter] glass.css 为空或已注入，跳过");
       return;
     }
     var style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = css;
     document.head.appendChild(style);
+    document.documentElement.setAttribute("data-palette-glass", "1");
+    console.log("[palette-adapter] 毛玻璃样式已注入，长度:", css.length);
   }
 
   function applyBackground(url) {
     if (!url || !document.body) {
+      console.warn("[palette-adapter] 背景 URL 为空，跳过");
       return;
     }
     document.body.style.backgroundImage = 'url("' + url + '")';
@@ -45,6 +50,8 @@
     document.body.style.backgroundPosition = "center center";
     document.body.style.backgroundAttachment = "fixed";
     document.body.style.backgroundColor = "transparent";
+    document.documentElement.setAttribute("data-palette-bg", "1");
+    console.log("[palette-adapter] 背景已设置，前缀:", String(url).slice(0, 30));
   }
 
   function whenBridge() {
@@ -67,24 +74,25 @@
 
   whenBridge().then(function (bridge) {
     if (!bridge) {
-      // 非 AstrBot 插件视图环境：保持插件原样
+      console.warn("[palette-adapter] AstrBotPluginView bridge 不可用，保持插件原样");
       return;
     }
+    console.log("[palette-adapter] bridge 就绪，开始请求毛玻璃样式");
     bridge
       .apiGet(GLASS_ENDPOINT)
       .then(function (data) {
         injectGlass(data && data.css);
       })
-      .catch(function () {
-        /* 无附属插件：保持插件原样 */
+      .catch(function (err) {
+        console.warn("[palette-adapter] 获取毛玻璃样式失败:", err && err.message);
       });
     bridge
       .apiGet(BACKGROUND_ENDPOINT)
       .then(function (data) {
         applyBackground(data && data.url);
       })
-      .catch(function () {
-        /* 无附属插件：保持插件原样 */
+      .catch(function (err) {
+        console.warn("[palette-adapter] 获取背景失败:", err && err.message);
       });
   });
 })();

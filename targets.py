@@ -8,9 +8,15 @@
 - Python API：get_dashboard_targets(custom_dist=None) -> list[dict]
               get_recommended_target(custom_dist=None) -> dict | None
 - HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/dashboard-targets
+
+毛玻璃注入（供其他插件注册代理路由时调用）：
+- Python API：get_glass_css() -> str
+              get_background_data_url() -> str
 """
 from __future__ import annotations
 
+import base64
+import json
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -238,3 +244,85 @@ def get_recommended_target(custom_dist: Path | None = None) -> dict | None:
             return t
     # 3. 最后第一个可用目标
     return targets[0]
+
+
+_GLASS_CSS = (
+    Path(__file__).with_name("glass.css").read_text(encoding="utf-8")
+)
+
+_PALETTE_BACKGROUND_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+}
+
+
+def _palette_config_path() -> Path | None:
+    """定位调色盘主插件配置文件。"""
+    try:
+        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+        return Path(get_astrbot_data_path()) / "config" / "astrbot_plugin_palette_config.json"
+    except Exception:
+        return None
+
+
+def _palette_background_name() -> str:
+    """读取调色盘当前背景文件名或 URL。"""
+    try:
+        path = _palette_config_path()
+        if path is None or not path.exists():
+            return ""
+        cfg = json.loads(path.read_text(encoding="utf-8-sig"))
+        return (
+            cfg.get("landscape_background_image")
+            or cfg.get("background_image")
+            or (cfg.get("landscape_background_images") or [None])[0]
+            or cfg.get("portrait_background_image")
+            or (cfg.get("portrait_background_images") or [None])[0]
+            or ""
+        )
+    except Exception:
+        return ""
+
+
+def get_glass_css() -> str:
+    """返回通用毛玻璃样式；未安装/读取失败返回空串。"""
+    try:
+        return _GLASS_CSS
+    except Exception:
+        return ""
+
+
+def get_background_data_url() -> str:
+    """读取调色盘当前背景图，返回可直接用作 CSS 背景的 data URL。
+
+    背景图接口需要登录鉴权，iframe 内无法通过 <img>/CSS 背景携带
+    Authorization，因此这里由后端读取文件并转为 base64 data URL。
+    未安装调色盘/未配置背景时返回空串。
+    """
+    try:
+        name = _palette_background_name()
+        if not name:
+            return ""
+        if name.startswith("http://") or name.startswith("https://") or name.startswith("data:"):
+            return name
+        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+        bg_dir = (
+            Path(get_astrbot_data_path())
+            / "plugin_data"
+            / "astrbot_plugin_palette"
+            / "backgrounds"
+        )
+        fpath = bg_dir / name
+        if not fpath.exists():
+            return ""
+        mime = _PALETTE_BACKGROUND_MIME.get(fpath.suffix.lower(), "application/octet-stream")
+        b64 = base64.b64encode(fpath.read_bytes()).decode("ascii")
+        return f"data:{mime};base64,{b64}"
+    except Exception:
+        return ""
