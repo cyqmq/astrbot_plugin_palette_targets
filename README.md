@@ -130,35 +130,35 @@ def _resolve_dashboard_target(paths, *, allow_copy_fallback):
 
 ## 其他插件接入（适配逻辑）
 
-任何需要定位 AstrBot Dashboard 入口的插件（美化、注入、统计类），
-可复制仓库里的 **`palette_targets_client.py`** 到自己的插件目录，
-即可统一获取目标列表，无需关心附属插件是否安装。
+推荐方案：**附属插件持有全部解析逻辑，其他插件只内嵌一个最小接入器**，
+避免每个插件复制完整客户端导致臃肿。
+
+### 方式 A（推荐）：最小接入器，约 25 行
+
+复制仓库里的 **`minimal_adapter.py`** 到你的插件目录，即可获得三个函数：
 
 ```python
-from palette_targets_client import (
-    get_dashboard_targets,     # -> list[dict]（JSON 可序列化）
-    get_recommended_target,    # -> dict | None
-    get_dashboard_paths,       # -> list[TargetPaths]（Path 对象）
-    get_recommended_paths,     # -> TargetPaths | None
-)
+from minimal_adapter import get_recommended_target, get_dashboard_index, get_dashboard_dist
 
-# 示例：拿到推荐目标后注入
-target = get_recommended_paths()
-if target and target.index.is_file():
-    content = target.index.read_text(encoding="utf-8")
-    # ... 你的注入逻辑
+target = get_recommended_target()   # dict | None
+index = get_dashboard_index()       # Path | None（推荐 index.html）
+dist  = get_dashboard_dist()        # Path | None
 ```
 
-### 适配原理（三层回退）
+适配原理（两层）：
+1. **首选**：`import astrbot_plugin_palette_targets.targets`
+   - 附属插件已安装 → 完整解析（data/dist、bundled、--webui-dir、公开解析器）
+2. **回退**：仅查 `data/dist` 一次（`get_astrbot_data_path() / "dist"`）
+   - 附属插件未安装也能覆盖最常见路径
 
-1. **首选**：`import astrbot_plugin_palette_targets.targets`（附属插件已安装）
-   - 获得与调色盘主插件一致的完整解析（data/dist、bundled、--webui-dir、公开解析器）
-2. **回退 1**：本插件未安装时，客户端文件内置轻量解析
-   - `data/dist`（`get_astrbot_data_path() / "dist"`）
-   - bundled（`get_bundled_dashboard_dist_path()`，4.26+）
-3. **回退 2**：两者都不可用时返回空列表，插件自行处理
+这样你的插件只多 25 行，重的解析逻辑全在附属插件里，多个插件共用一份。
 
-所有路径都以字符串/Path 返回，可 JSON 序列化、可读写文件。
+### 方式 B（可选）：完整客户端
+
+如果插件需要更多能力（目标列表、Path 对象、示例工具函数），
+可复制 **`palette_targets_client.py`**（约 130 行），提供：
+`get_dashboard_targets` / `get_recommended_target` / `get_dashboard_paths` /
+`get_recommended_paths` / `ensure_index_writable`。
 
 ## 说明
 

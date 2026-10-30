@@ -199,3 +199,30 @@ data/dist/index.html，改为调用附属插件暴露的 API 获取目标列表�
       # 注入逻辑...
 
 这样其他插件接入成本降到「复制一个文件 + 调用两个函数」。
+
+================================================================
+八、最小接入器方案（避免插件臃肿）
+================================================================
+问题：每个插件都复制完整 palette_targets_client.py（约 130 行）
+      会导致多处维护、插件体积膨胀。
+
+方案：附属插件持有全部逻辑，其他插件只内嵌 minimal_adapter.py
+      （约 25 行）。重逻辑只写一份，接入成本降到「一个 25 行文件」。
+
+minimal_adapter.py 提供：
+  get_recommended_target()  -> dict | None
+  get_dashboard_index()    -> Path | None
+  get_dashboard_dist()     -> Path | None
+
+两层回退：
+  1. import astrbot_plugin_palette_targets.targets
+     （附属插件已安装 -> 完整解析）
+  2. 仅回退 data/dist 一次
+     （get_astrbot_data_path() / "dist"）
+
+对比：
+  - palette_targets_client.py（完整客户端）：
+    多目标列表、Path dataclass、示例函数；适合复杂需求。
+  - minimal_adapter.py（最小接入器）：
+    只拿推荐 index/dist；适合绝大多数注入/美化插件。
+  推荐默认用 minimal_adapter.py。
