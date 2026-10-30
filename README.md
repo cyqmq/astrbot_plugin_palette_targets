@@ -133,82 +133,65 @@ def _resolve_dashboard_target(paths, *, allow_copy_fallback):
 推荐方案：**附属插件持有全部解析逻辑，其他插件只内嵌一个最小接入器**，
 避免每个插件复制完整客户端导致臃肿。
 
-### 方式 C（推荐）：前端毛玻璃自动注入
+### 方式 C（推荐）：毛玻璃自动注入（只插入最小连接器）
 
 如果你的插件有**视图页面**（`views/<视图名>/index.html`，AstrBot 以 iframe
-加载），想让页面透出调色盘壁纸（卡片半透明 + 毛玻璃），只需：
+加载），想让页面透出调色盘壁纸（卡片半透明 + 毛玻璃），只需复制
+**两个文件**并做 **3 行修改**：
 
-1. 复制 **`minimal_adapter.js`**（约 45 行）到你的 `views/<视图名>/` 目录；
-2. 在 `index.html` 中引入：
-   ```html
-   <script src="./minimal_adapter.js"></script>
-   ```
-3. 在你的插件 `main.py` 中注册**两个代理路由**（`glass.css` 和
-   `background-url`），转发到本附属插件的 Python API。
+**第 1 步：复制最小接入器**
 
-为什么需要代理路由：AstrBot 插件视图 iframe 的 `bridge.apiGet` 只会请求
-**当前插件自己的扩展路由**（自动拼接 `/plugins/extensions/<当前插件>/`
-前缀），无法跨插件调用。因此由宿主插件注册同名路由，后端直接调用
-`astrbot_plugin_palette_targets` 的 Python API（未安装时返回空串）。
+```bash
+# 前端接入器（约 45 行 JS）→ 视图目录
+cp .../astrbot_plugin_palette_targets/minimal_adapter.js \
+   <你的插件>/views/<视图名>/minimal_adapter.js
 
-参考实现（monkeycode 已按此接入）：
-
-```python
-# main.py 的 _register_web_apis() 中新增：
-self.context.register_web_api(
-    f"/{PLUGIN_NAME}/glass.css",
-    self.view_glass_css,
-    ["GET"],
-    "获取调色盘毛玻璃样式（代理 palette_targets）",
-)
-self.context.register_web_api(
-    f"/{PLUGIN_NAME}/background-url",
-    self.view_background_url,
-    ["GET"],
-    "获取调色盘背景图 data URL（代理 palette_targets）",
-)
-
-# 处理函数：
-async def view_glass_css(self):
-    try:
-        from data.plugins.astrbot_plugin_palette_targets.targets import get_glass_css
-    except Exception:
-        try:
-            from astrbot_plugin_palette_targets.targets import get_glass_css
-        except Exception:
-            return json_response({"css": ""})
-    try:
-        return json_response({"css": get_glass_css()})
-    except Exception:
-        return json_response({"css": ""})
-
-async def view_background_url(self):
-    try:
-        from data.plugins.astrbot_plugin_palette_targets.targets import (
-            get_background_data_url,
-        )
-    except Exception:
-        try:
-            from astrbot_plugin_palette_targets.targets import get_background_data_url
-        except Exception:
-            return json_response({"url": ""})
-    try:
-        return json_response({"url": get_background_data_url()})
-    except Exception:
-        return json_response({"url": ""})
+# 后端接入器（约 100 行 Python，含代理路由注册）→ 插件根目录
+cp .../astrbot_plugin_palette_targets/minimal_adapter.py \
+   <你的插件>/minimal_adapter.py
 ```
 
-行为：
+**第 2 步：视图入口引入 JS**
+
+在 `<你的插件>/views/<视图名>/index.html` 的 `</body>` 前加一行：
+
+```html
+<script src="./minimal_adapter.js"></script>
+```
+
+**第 3 步：插件 main.py 注册代理路由（两行）**
+
+在插件类的 `__init__` 中（已有 `self.context`）加：
+
+```python
+from minimal_adapter import register_palette_glass_proxy
+
+register_palette_glass_proxy(self.context, PLUGIN_NAME)
+```
+
+`PLUGIN_NAME` 是你的插件唯一标识名（与 `@register` 的第一个参数一致，
+如 `astrbot_plugin_monkeycode`）。
+
+**为什么需要代理路由**：AstrBot 插件视图 iframe 的 `bridge.apiGet` 只会请求
+**当前插件自己的扩展路由**（自动拼接 `/plugins/extensions/<当前插件>/`
+前缀），无法跨插件调用。因此由宿主插件注册同名路由，后端通过
+`minimal_adapter.py` 调用 `astrbot_plugin_palette_targets` 的 Python API
+（未安装时返回空串）。
+
+**行为**：
 - **已安装 `astrbot_plugin_palette_targets`**：`minimal_adapter.js` 通过
   bridge 请求宿主插件的 `/glass.css` 与 `/background-url`，注入毛玻璃样式，
   并把调色盘壁纸（base64 data URL）设置为页面 body 背景，卡片半透明 +
   `backdrop-filter` 生效。
-- **未安装本附属插件**：宿主插件代理返回 `{"css":""}` / `{"url":""}`，
+- **未安装本附属插件**：`minimal_adapter.py` 返回 `{"css":""}` / `{"url":""}`，
   接入器检测到空值后跳过，页面保持原本外观，零影响。
 
 `glass.css` 使用 CSS 变量 + fallback：
 - 有 Vuetify 主题变量（`--v-theme-surface` 等）时跟随调色盘主题；
 - 没有时按 `prefers-color-scheme` 自动退化浅色/深色默认值。
+
+**已按此方式接入的插件**：`astrbot_plugin_monkeycode`（MonkeyCode 编程助手
+的设置视图）。可参考其 `main.py`、`views/settings/` 目录作为实例。
 
 ### 方式 A（推荐）：Python 最小接入器，约 25 行
 
