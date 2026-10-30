@@ -133,7 +133,29 @@ def _resolve_dashboard_target(paths, *, allow_copy_fallback):
 推荐方案：**附属插件持有全部解析逻辑，其他插件只内嵌一个最小接入器**，
 避免每个插件复制完整客户端导致臃肿。
 
-### 方式 A（推荐）：最小接入器，约 25 行
+### 方式 C（推荐）：前端毛玻璃自动注入，约 20 行 JS
+
+如果你的插件有**视图页面**（`views/<视图名>/index.html`，AstrBot 以 iframe
+加载），想让页面透出调色盘壁纸，只需复制 **`minimal_adapter.js`** 到你的
+`views/<视图名>/` 目录，并在 `index.html` 中引入：
+
+```html
+<script src="./minimal_adapter.js"></script>
+```
+
+行为：
+- **已安装 `astrbot_plugin_palette_targets`**：自动请求 `glass.css`
+  （通用毛玻璃样式），注入到你的页面，section/输入框等组件变为
+  半透明 + `backdrop-filter`，透出壁纸。
+- **未安装本附属插件**：请求返回 `application/json` 错误，
+  接入器检测 content-type 不是 `text/css` 后静默失败，页面保持原本外观，
+  零影响。
+
+`glass.css` 使用 CSS 变量 + fallback：
+- 有 Vuetify 主题变量（`--v-theme-surface` 等）时跟随调色盘主题；
+- 没有时按 `prefers-color-scheme` 自动退化浅色/深色默认值。
+
+### 方式 A（推荐）：Python 最小接入器，约 25 行
 
 复制仓库里的 **`minimal_adapter.py`** 到你的插件目录，即可获得三个函数：
 
