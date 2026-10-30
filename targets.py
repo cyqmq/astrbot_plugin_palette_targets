@@ -297,6 +297,44 @@ def get_glass_css() -> str:
         return ""
 
 
+def get_palette_theme() -> dict:
+    """返回调色盘当前主题色 RGB 三元组（供 iframe 内 CSS 变量使用）。
+
+    返回 {"primary": "r, g, b", "secondary": "r, g, b"}；
+    未配置时对应值为空串。
+    """
+
+    def _hex_to_rgb(hexstr: str) -> str:
+        hexstr = (hexstr or "").lstrip("#")
+        if len(hexstr) != 6:
+            return ""
+        try:
+            rgb = tuple(int(hexstr[i : i + 2], 16) for i in (0, 2, 4))
+        except ValueError:
+            return ""
+        return ", ".join(map(str, rgb))
+
+    try:
+        path = _palette_config_path()
+        if path is None or not path.exists():
+            return {"primary": "", "secondary": ""}
+        cfg = json.loads(path.read_text(encoding="utf-8-sig"))
+        return {
+            "primary": _hex_to_rgb(cfg.get("theme_primary", "")),
+            "secondary": _hex_to_rgb(cfg.get("theme_secondary", "")),
+        }
+    except Exception:
+        return {"primary": "", "secondary": ""}
+
+
+def get_background_info() -> dict:
+    """返回调色盘当前背景名与主题色（轻量，供轮询检测变化）。"""
+    return {
+        "name": _palette_background_name(),
+        "theme": get_palette_theme(),
+    }
+
+
 def get_background_data_url() -> str:
     """读取调色盘当前背景图，返回可直接用作 CSS 背景的 data URL。
 

@@ -99,6 +99,27 @@ def _load_glass_api():
             return None, None
 
 
+def _load_glass_api():
+    """加载附属插件的毛玻璃 Python API；未安装返回 (None, None, None)。"""
+    try:
+        from data.plugins.astrbot_plugin_palette_targets.targets import (
+            get_glass_css,
+            get_background_data_url,
+            get_background_info,
+        )
+        return get_glass_css, get_background_data_url, get_background_info
+    except Exception:
+        try:
+            from astrbot_plugin_palette_targets.targets import (
+                get_glass_css,
+                get_background_data_url,
+                get_background_info,
+            )
+            return get_glass_css, get_background_data_url, get_background_info
+        except Exception:
+            return None, None, None
+
+
 def register_palette_glass_proxy(context, plugin_name: str) -> None:
     """注册调色盘毛玻璃代理路由（最小接入器）。
 
@@ -109,13 +130,14 @@ def register_palette_glass_proxy(context, plugin_name: str) -> None:
     效果：
     - 已安装 astrbot_plugin_palette_targets：插件的
       /<插件名>/glass.css 返回毛玻璃样式，/<插件名>/background-url
-      返回调色盘壁纸 base64 data URL；
-    - 未安装：两者返回空串，插件保持原本外观，零影响。
+      返回调色盘壁纸 base64 data URL，/<插件名>/background-info
+      返回背景名与主题色（轻量，供轮询检测变化）；
+    - 未安装：全部返回空，插件保持原本外观，零影响。
     """
     prefix = f"/{plugin_name}"
 
     async def _glass_css():
-        get_glass_css, _ = _load_glass_api()
+        get_glass_css, _, _ = _load_glass_api()
         if get_glass_css is None:
             return json_response({"css": ""})
         try:
@@ -124,13 +146,30 @@ def register_palette_glass_proxy(context, plugin_name: str) -> None:
             return json_response({"css": ""})
 
     async def _background_url():
-        _, get_background_data_url = _load_glass_api()
+        _, get_background_data_url, get_background_info = _load_glass_api()
         if get_background_data_url is None:
-            return json_response({"url": ""})
+            return json_response({"url": "", "name": "", "theme": {"primary": "", "secondary": ""}})
         try:
-            return json_response({"url": get_background_data_url()})
+            url = get_background_data_url()
+            info = get_background_info() if get_background_info else {}
+            return json_response(
+                {
+                    "url": url,
+                    "name": info.get("name", ""),
+                    "theme": info.get("theme", {"primary": "", "secondary": ""}),
+                }
+            )
         except Exception:
-            return json_response({"url": ""})
+            return json_response({"url": "", "name": "", "theme": {"primary": "", "secondary": ""}})
+
+    async def _background_info():
+        _, _, get_background_info = _load_glass_api()
+        if get_background_info is None:
+            return json_response({"name": "", "theme": {"primary": "", "secondary": ""}})
+        try:
+            return json_response(get_background_info())
+        except Exception:
+            return json_response({"name": "", "theme": {"primary": "", "secondary": ""}})
 
     context.register_web_api(
         f"{prefix}/glass.css",
@@ -143,4 +182,10 @@ def register_palette_glass_proxy(context, plugin_name: str) -> None:
         _background_url,
         ["GET"],
         "获取调色盘背景图 data URL（代理 palette_targets）",
+    )
+    context.register_web_api(
+        f"{prefix}/background-info",
+        _background_info,
+        ["GET"],
+        "获取调色盘背景名与主题色（代理 palette_targets）",
     )

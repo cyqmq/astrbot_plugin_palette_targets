@@ -24,7 +24,13 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.star import Context, Star, register
 from astrbot.api.web import json_response, request
 
-from .targets import get_dashboard_targets, get_recommended_target
+from .targets import (
+    get_background_data_url,
+    get_dashboard_targets,
+    get_glass_css,
+    get_palette_theme,
+    get_recommended_target,
+)
 
 PLUGIN_NAME = "astrbot_plugin_palette_targets"
 ROUTE_PREFIX = f"/{PLUGIN_NAME}"
@@ -137,6 +143,12 @@ class PaletteTargetsPlugin(Star):
             ["GET"],
             "获取调色盘当前背景图 URL（供插件视图同步壁纸）",
         )
+        context.register_web_api(
+            f"{ROUTE_PREFIX}/background-info",
+            self.background_info,
+            ["GET"],
+            "获取调色盘背景名与主题色（轻量，供轮询检测变化）",
+        )
 
     async def glass_css(self):
         """返回通用毛玻璃样式（JSON）。
@@ -151,17 +163,40 @@ class PaletteTargetsPlugin(Star):
             return json_response({"css": ""})
 
     async def background_url(self):
-        """返回调色盘当前背景图 data URL（JSON）。
+        """返回调色盘当前背景图 data URL 与主题色（JSON）。
 
         iframe 内无法直接加载需要鉴权的背景图 URL，因此后端读取
         背景文件并转为 base64 data URL，minimal_adapter 将其设置为
         页面背景，使毛玻璃卡片能够模糊壁纸。
         """
         try:
-            return json_response({"url": _palette_background_data_url()})
+            return json_response(
+                {
+                    "url": get_background_data_url(),
+                    "name": _palette_background_name(),
+                    "theme": get_palette_theme(),
+                }
+            )
         except Exception as e:
             logger.error(f"[{PLUGIN_NAME}] 读取调色盘背景失败: {e}")
-            return json_response({"url": ""})
+            return json_response({"url": "", "name": "", "theme": {"primary": "", "secondary": ""}})
+
+    async def background_info(self):
+        """返回调色盘当前背景名与主题色（轻量 JSON，不含 base64）。
+
+        minimal_adapter 定期轮询本接口检测变化，只有变化时才重新
+        请求 background-url，避免频繁传输大体积 base64。
+        """
+        try:
+            return json_response(
+                {
+                    "name": _palette_background_name(),
+                    "theme": get_palette_theme(),
+                }
+            )
+        except Exception as e:
+            logger.error(f"[{PLUGIN_NAME}] 读取调色盘背景信息失败: {e}")
+            return json_response({"name": "", "theme": {"primary": "", "secondary": ""}})
 
     async def dashboard_targets(self):
         """返回全部候选 Dashboard 目标。"""
