@@ -46,8 +46,21 @@
     document.body.style.backgroundColor = "transparent";
   }
 
+  function authHeaders() {
+    var headers = { "Cache-Control": "no-cache" };
+    try {
+      var token = window.localStorage.getItem("token") || "";
+      if (token) {
+        headers.Authorization = "Bearer " + token;
+      }
+    } catch (e) {
+      /* localStorage 不可用时依赖 cookie */
+    }
+    return headers;
+  }
+
   function requestGlass() {
-    fetch(GLASS_CSS_URL, { cache: "no-cache" })
+    fetch(GLASS_CSS_URL, { headers: authHeaders(), cache: "no-cache" })
       .then(function (resp) {
         if (!isContentType(resp, "text/css")) {
           throw new Error("companion plugin not available");
@@ -56,12 +69,12 @@
       })
       .then(injectGlass)
       .catch(function () {
-        /* 无附属插件：保持插件原样 */
+        /* 无附属插件或未登录：保持插件原样 */
       });
   }
 
   function requestBackground() {
-    fetch(BACKGROUND_URL_URL, { cache: "no-cache" })
+    fetch(BACKGROUND_URL_URL, { headers: authHeaders(), cache: "no-cache" })
       .then(function (resp) {
         if (!isContentType(resp, "application/json")) {
           throw new Error("companion plugin not available");
@@ -72,7 +85,7 @@
         applyBackground(data && data.url);
       })
       .catch(function () {
-        /* 无附属插件：保持插件原样 */
+        /* 无附属插件或未登录：保持插件原样 */
       });
   }
 
