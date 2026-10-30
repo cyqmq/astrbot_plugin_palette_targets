@@ -8,20 +8,21 @@
 
 还提供「毛玻璃注入」能力，供其他插件视图自动适配调色盘壁纸：
 - HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/glass.css
-  返回通用毛玻璃样式。
+  返回通用毛玻璃样式（JSON：{"css": "..."}）。
 - HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/background-url
-  返回调色盘当前背景图 URL（iframe 内同步壁纸用）。
-- 其他插件只需在视图 index.html 引入 minimal_adapter.js（约 20 行），
+  返回调色盘当前背景图（JSON：{"url": "data:image/...;base64,..."}）。
+- 其他插件只需在视图 index.html 引入 minimal_adapter.js（约 45 行），
   有本插件时自动注入毛玻璃并同步壁纸，没有时保持插件原本外观。
 """
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.star import Context, Star, register
-from astrbot.api.web import json_response, request, stream_response
+from astrbot.api.web import json_response, request
 
 from .targets import get_dashboard_targets, get_recommended_target
 
@@ -32,9 +33,14 @@ _GLASS_CSS = (
     Path(__file__).with_name("glass.css").read_text(encoding="utf-8")
 )
 
-_PALETTE_BACKGROUNDS_ROUTE = (
-    "/api/v1/plugins/extensions/astrbot_plugin_palette/backgrounds"
-)
+_PALETTE_BACKGROUND_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+}
 
 
 def _palette_config_path() -> Path | None:
@@ -47,17 +53,14 @@ def _palette_config_path() -> Path | None:
         return None
 
 
-def _palette_background_url() -> str:
-    """读取调色盘当前背景图，返回可被 iframe 直接使用的 URL。
-
-    返回空串表示调色盘未配置背景或读取失败。
-    """
+def _palette_background_name() -> str:
+    """读取调色盘当前背景文件名或 URL。"""
     try:
         path = _palette_config_path()
         if path is None or not path.exists():
             return ""
         cfg = json.loads(path.read_text(encoding="utf-8-sig"))
-        name = (
+        return (
             cfg.get("landscape_background_image")
             or cfg.get("background_image")
             or (cfg.get("landscape_background_images") or [None])[0]
@@ -65,13 +68,37 @@ def _palette_background_url() -> str:
             or (cfg.get("portrait_background_images") or [None])[0]
             or ""
         )
+    except Exception:
+        return ""
+
+
+def _palette_background_data_url() -> str:
+    """读取调色盘当前背景图，返回可直接用作 CSS 背景的 data URL。
+
+    背景图接口需要登录鉴权，iframe 内无法通过 <img>/CSS 背景携带
+    Authorization，因此这里由后端读取文件并转为 base64 data URL，
+    交给 minimal_adapter 作为页面背景。
+    """
+    try:
+        name = _palette_background_name()
         if not name:
             return ""
-        if name.startswith("http://") or name.startswith("https://"):
+        if name.startswith("http://") or name.startswith("https://") or name.startswith("data:"):
             return name
-        if name.startswith("/"):
-            return name
-        return f"{_PALETTE_BACKGROUNDS_ROUTE}/{name}"
+        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+        bg_dir = (
+            Path(get_astrbot_data_path())
+            / "plugin_data"
+            / "astrbot_plugin_palette"
+            / "backgrounds"
+        )
+        fpath = bg_dir / name
+        if not fpath.exists():
+            return ""
+        mime = _PALETTE_BACKGROUND_MIME.get(fpath.suffix.lower(), "application/octet-stream")
+        b64 = base64.b64encode(fpath.read_bytes()).decode("ascii")
+        return f"data:{mime};base64,{b64}"
     except Exception:
         return ""
 
@@ -112,26 +139,26 @@ class PaletteTargetsPlugin(Star):
         )
 
     async def glass_css(self):
-        """返回通用毛玻璃样式表（text/css）。
+        """返回通用毛玻璃样式（JSON）。
 
-        其他插件的 minimal_adapter.js 请求本接口，成功则注入样式，
-        失败（本插件未安装）则保持插件原本外观。
-        """
-        return stream_response(
-            [_GLASS_CSS],
-            content_type="text/css; charset=utf-8",
-            headers={"Cache-Control": "no-store"},
-        )
-
-    async def background_url(self):
-        """返回调色盘当前背景图 URL（JSON）。
-
-        iframe 内的 minimal_adapter.js 请求本接口，将背景图同步到
-        插件视图页面，使毛玻璃卡片能够模糊壁纸（iframe 内
-        backdrop-filter 无法跨文档模糊父页面壁纸，必须自绘背景）。
+        父页面 bridge 使用 axios 代理请求，对 text/css 响应会按 JSON
+        解析而失败，因此这里返回 {"css": "..."}。
         """
         try:
-            return json_response({"url": _palette_background_url()})
+            return json_response({"css": _GLASS_CSS})
+        except Exception as e:
+            logger.error(f"[{PLUGIN_NAME}] 返回毛玻璃样式失败: {e}")
+            return json_response({"css": ""})
+
+    async def background_url(self):
+        """返回调色盘当前背景图 data URL（JSON）。
+
+        iframe 内无法直接加载需要鉴权的背景图 URL，因此后端读取
+        背景文件并转为 base64 data URL，minimal_adapter 将其设置为
+        页面背景，使毛玻璃卡片能够模糊壁纸。
+        """
+        try:
+            return json_response({"url": _palette_background_data_url()})
         except Exception as e:
             logger.error(f"[{PLUGIN_NAME}] 读取调色盘背景失败: {e}")
             return json_response({"url": ""})

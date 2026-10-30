@@ -72,7 +72,9 @@
     }
     bridge
       .apiGet(GLASS_ENDPOINT)
-      .then(injectGlass)
+      .then(function (data) {
+        injectGlass(data && data.css);
+      })
       .catch(function () {
         /* 无附属插件：保持插件原样 */
       });
