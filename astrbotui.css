@@ -1,0 +1,203 @@
+/*
+ * astrbotui.css — AstrBot 原版 UI 组件库（可选接入）。
+ *
+ * 用法：复制本文件到你的插件 <views>/<视图名>/ 目录，在 index.html 引入：
+ *   <link rel="stylesheet" href="./astrbotui.css" />
+ *
+ * 效果：
+ *   - 不使用 astrbot_plugin_palette_targets / 调色盘时，卡片、背景、输入框、
+ *     按钮等组件样式与 AstrBot 原版 UI 高度一致（使用同一套 Vuetify 主题
+ *     CSS 变量 --v-theme-*，默认值取自 AstrBot 原版 PurpleThemeDark）。
+ *   - 接入附属插件后，minimal_adapter.js / bridge.js 会把主文档的实时主题
+ *     变量注入到 :root，覆盖本文件默认值，毛玻璃效果与原版完全一致。
+ *
+ * 本文件仅提供样式，不要求强制使用；插件可以继续保留自己的 style.css。
+ */
+:root {
+  /* AstrBot 原版 PurpleThemeDark 默认主题变量（RGB 三元组） */
+  --v-theme-primary: 91, 164, 212;
+  --v-theme-secondary: 74, 149, 196;
+  --v-theme-darkprimary: 58, 138, 184;
+  --v-theme-darksecondary: 58, 138, 184;
+  --v-theme-surface: 36, 36, 36;
+  --v-theme-on-surface: 255, 255, 255;
+  --v-theme-background: 26, 26, 26;
+  --v-theme-on-background: 255, 255, 255;
+  --v-theme-containerBg: 26, 26, 26;
+  --v-theme-surface-variant: 224, 224, 224;
+  --v-theme-on-surface-variant: 224, 224, 224;
+  --v-theme-outline: 51, 51, 51;
+  --astrbotui-input-border: 120, 120, 120;
+  --astrbotui-border: rgba(var(--v-theme-on-surface), 0.12);
+  --astrbotui-muted: rgba(var(--v-theme-on-surface), 0.78);
+}
+
+/* 浅色模式（跟随系统）：原版 PurpleTheme */
+@media (prefers-color-scheme: light) {
+  :root {
+    --v-theme-primary: 60, 150, 202;
+    --v-theme-secondary: 47, 134, 189;
+    --v-theme-darkprimary: 21, 101, 192;
+    --v-theme-darksecondary: 35, 107, 153;
+    --v-theme-surface: 255, 255, 255;
+    --v-theme-on-surface: 27, 28, 29;
+    --v-theme-background: 255, 255, 255;
+    --v-theme-on-background: 27, 28, 29;
+    --v-theme-containerBg: 255, 255, 255;
+    --v-theme-surface-variant: 224, 224, 224;
+    --v-theme-on-surface-variant: 27, 28, 29;
+    --v-theme-outline: 208, 208, 208;
+    --astrbotui-input-border: 120, 120, 120;
+    --astrbotui-border: rgba(var(--v-theme-on-surface), 0.16);
+    --astrbotui-muted: rgba(var(--v-theme-on-surface), 0.78);
+  }
+}
+
+/* ---------- 页面骨架 ---------- */
+body {
+  background: rgb(var(--v-theme-background));
+  color: rgb(var(--v-theme-on-background));
+  font-family: "Roboto", "Helvetica Neue", Arial, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 16px 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
+  margin: 0 0 12px;
+}
+
+.desc {
+  color: var(--astrbotui-muted);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+/* ---------- 卡片（section / .card） ---------- */
+section,
+.card {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid var(--astrbotui-border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: rgb(var(--v-theme-on-surface));
+}
+
+/* ---------- 表单字段 ---------- */
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-on-surface-variant));
+}
+
+input[type="text"],
+input[type="number"],
+input[type="password"],
+input[type="email"],
+select,
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgb(var(--v-theme-containerBg));
+  border: 1px solid rgb(var(--astrbotui-input-border));
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: rgb(var(--v-theme-on-surface));
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgb(var(--v-theme-primary));
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-primary), 0.35);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* ---------- 复选框 ---------- */
+.field.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field.check label {
+  margin-bottom: 0;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: rgb(var(--v-theme-primary));
+}
+
+/* ---------- 按钮 ---------- */
+button,
+.btn {
+  background: rgb(var(--v-theme-primary));
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover,
+.btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 8px rgba(var(--v-theme-primary), 0.4);
+}
+
+button:disabled,
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- 状态文字 ---------- */
+.status {
+  margin-left: 10px;
+  font-size: 13px;
+  color: var(--astrbotui-muted);
+}

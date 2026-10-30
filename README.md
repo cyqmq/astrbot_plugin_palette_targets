@@ -230,6 +230,31 @@ dist  = get_dashboard_dist()        # Path | None
 `get_dashboard_targets` / `get_recommended_target` / `get_dashboard_paths` /
 `get_recommended_paths` / `ensure_index_writable`。
 
+### 方式 D（可选）：astrbotui 原版 UI 库
+
+如果你的插件视图是纯 HTML（没有 Vuetify），想让卡片、背景、输入框、按钮
+等组件**长得像 AstrBot 原版 UI**，可以引入本仓库提供的 **`astrbotui.css`**：
+
+```bash
+cp .../astrbot_plugin_palette_targets/astrbotui.css \
+   <你的插件>/views/<视图名>/astrbotui.css
+```
+
+在 `index.html` 的 `<head>` 中加入：
+
+```html
+<link rel="stylesheet" href="./astrbotui.css" />
+```
+
+特性：
+- 内置 AstrBot 原版 PurpleThemeDark / PurpleTheme 的默认主题变量
+  （`--v-theme-surface`、`--v-theme-on-surface`、`--v-theme-primary` 等），
+  不使用调色盘/附属插件时样式也与原版高度一致；
+- 组件样式基于同一套 `--v-theme-*` 变量，可被
+  `minimal_adapter.js` + bridge.js 注入的实时主题变量直接覆盖，
+  接入调色盘后毛玻璃效果与原版完全一致；
+- 非强制：插件可以继续保留自己的 `style.css`，本库按需引入。
+
 ## 说明
 
 - 本插件不修改任何 AstrBot 文件，只做「目标发现」，注入逻辑仍在主插件。
