@@ -11,6 +11,8 @@
   返回通用毛玻璃样式（JSON：{"css": "..."}）。
 - HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/background-url
   返回调色盘当前背景图（JSON：{"url": "data:image/...;base64,..."}）。
+- HTTP API：GET /api/v1/plugins/extensions/astrbot_plugin_palette_targets/bridge.js
+  主文档桥接脚本（监听调色盘配置广播并转发给插件视图 iframe）。
 - 其他插件只需在视图 index.html 引入 minimal_adapter.js（约 45 行），
   有本插件时自动注入毛玻璃并同步壁纸，没有时保持插件原本外观。
 """
@@ -18,11 +20,12 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from pathlib import Path
 
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.star import Context, Star, register
-from astrbot.api.web import json_response, request
+from astrbot.api.web import json_response, request, stream_response
 
 from .targets import (
     get_background_data_url,
@@ -38,6 +41,47 @@ ROUTE_PREFIX = f"/{PLUGIN_NAME}"
 _GLASS_CSS = (
     Path(__file__).with_name("glass.css").read_text(encoding="utf-8")
 )
+
+_BRIDGE_JS = (
+    Path(__file__).with_name("bridge.js").read_text(encoding="utf-8")
+)
+
+_INJECTION_START_MARKER = "<!-- astrbot_plugin_palette_targets:start -->"
+_INJECTION_END_MARKER = "<!-- astrbot_plugin_palette_targets:end -->"
+
+
+def ensure_bridge_injection() -> bool:
+    """向 AstrBot dashboard 主文档幂等注入桥接脚本。
+
+    桥接脚本监听调色盘主插件的 BroadcastChannel / storage 广播，
+    并把配置变化转发给页面内的插件视图 iframe，使 minimal_adapter
+    无需轮询即可实时刷新。注入失败（无 data/dist 等）静默跳过，
+    不影响其他功能。
+    """
+    try:
+        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
+        index = Path(get_astrbot_data_path()) / "dist" / "index.html"
+        if not index.is_file():
+            return False
+        content = index.read_text(encoding="utf-8")
+        if _INJECTION_START_MARKER in content and _INJECTION_END_MARKER in content:
+            return True
+        head_close = re.search(r"</head\s*>", content, flags=re.IGNORECASE)
+        if head_close is None:
+            return False
+        block = (
+            "\n  " + _INJECTION_START_MARKER + "\n"
+            '  <script src="/api/v1/plugins/extensions/astrbot_plugin_palette_targets/bridge.js"></script>\n'
+            + "  " + _INJECTION_END_MARKER + "\n"
+        )
+        next_content = content[: head_close.start()] + block + content[head_close.start():]
+        temp = index.with_suffix(index.suffix + ".palette-targets.tmp")
+        temp.write_text(next_content, encoding="utf-8")
+        temp.replace(index)
+        return True
+    except Exception:
+        return False
 
 _PALETTE_BACKGROUND_MIME = {
     ".jpg": "image/jpeg",
@@ -120,6 +164,12 @@ class PaletteTargetsPlugin(Star):
         super().__init__(context)
         self.config = config or {}
         context.register_web_api(
+            f"{ROUTE_PREFIX}/bridge.js",
+            self.bridge_js,
+            ["GET"],
+            "主文档桥接脚本（监听调色盘配置广播并转发给插件视图 iframe）",
+        )
+        context.register_web_api(
             f"{ROUTE_PREFIX}/dashboard-targets",
             self.dashboard_targets,
             ["GET"],
@@ -147,7 +197,16 @@ class PaletteTargetsPlugin(Star):
             f"{ROUTE_PREFIX}/background-info",
             self.background_info,
             ["GET"],
-            "获取调色盘背景名与主题色（轻量，供轮询检测变化）",
+            "获取调色盘背景名与主题色（轻量，供检测变化）",
+        )
+        ensure_bridge_injection()
+
+    async def bridge_js(self):
+        """返回主文档桥接脚本（text/javascript）。"""
+        return stream_response(
+            [_BRIDGE_JS],
+            content_type="text/javascript; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
         )
 
     async def glass_css(self):

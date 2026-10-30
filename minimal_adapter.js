@@ -27,6 +27,8 @@
 
   var current = { name: "", primary: "", secondary: "" };
   var pollTimer = null;
+  // 收到主文档桥接脚本转发的广播后置为 true，关闭自动轮询（事件驱动）。
+  var eventDriven = false;
 
   function setThemeVars(theme) {
     var de = document.documentElement;
@@ -130,8 +132,8 @@
   }
 
   function schedulePoll() {
-    // 页面隐藏时不轮询，恢复可见时由 visibilitychange 重新调度。
-    if (document.hidden) {
+    // 页面隐藏时或不轮询（事件驱动已接管）：跳过。
+    if (document.hidden || eventDriven) {
       return;
     }
     if (pollTimer) {
@@ -164,6 +166,22 @@
   window.addEventListener("focus", function () {
     if (!document.hidden) {
       checkAndRefresh().then(schedulePoll);
+    }
+  });
+
+  // 主文档桥接脚本（bridge.js）转发的配置变化广播。
+  window.addEventListener("message", function (event) {
+    var msg = event.data;
+    if (msg && msg.channel === "astrbot-palette-targets") {
+      if (msg.kind === "refresh") {
+        // 收到广播：关闭自动轮询，事件驱动接管，立即刷新。
+        eventDriven = true;
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+        loadBackground();
+      }
     }
   });
 
