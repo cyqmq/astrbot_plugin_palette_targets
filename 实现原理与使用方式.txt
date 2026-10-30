@@ -174,3 +174,28 @@ data/dist/index.html，改为调用附属插件暴露的 API 获取目标列表�
 3. 事件通知：dist 变化时推送事件给订阅插件。
 4. 多目标管理：支持多个 dashboard 实例（多开 AstrBot）。
 5. 提供 CLI 脚本：独立于 AstrBot 运行，供 CI/运维调用。
+================================================================
+七、其他插件适配客户端（palette_targets_client.py）
+================================================================
+仓库新增 palette_targets_client.py，其他插件可直接复制使用。
+
+提供统一 API：
+  get_dashboard_targets()      -> list[dict]
+  get_recommended_target()     -> dict | None
+  get_dashboard_paths()        -> list[TargetPaths]（Path 对象）
+  get_recommended_paths()      -> TargetPaths | None
+  ensure_index_writable()      -> bool（示例）
+
+三层回退：
+  1. import 附属插件完整解析（data/dist/bundled/--webui-dir/public resolver）
+  2. 附属插件未安装 -> 本地轻量解析（data/dist + bundled）
+  3. 两者不可用 -> 返回空列表，插件自行处理
+
+用法示例：
+  from palette_targets_client import get_recommended_paths
+  target = get_recommended_paths()
+  if target and target.index.is_file():
+      content = target.index.read_text(encoding="utf-8")
+      # 注入逻辑...
+
+这样其他插件接入成本降到「复制一个文件 + 调用两个函数」。

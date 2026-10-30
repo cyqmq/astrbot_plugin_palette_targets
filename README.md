@@ -128,6 +128,38 @@ def _resolve_dashboard_target(paths, *, allow_copy_fallback):
     ...
 ```
 
+## 其他插件接入（适配逻辑）
+
+任何需要定位 AstrBot Dashboard 入口的插件（美化、注入、统计类），
+可复制仓库里的 **`palette_targets_client.py`** 到自己的插件目录，
+即可统一获取目标列表，无需关心附属插件是否安装。
+
+```python
+from palette_targets_client import (
+    get_dashboard_targets,     # -> list[dict]（JSON 可序列化）
+    get_recommended_target,    # -> dict | None
+    get_dashboard_paths,       # -> list[TargetPaths]（Path 对象）
+    get_recommended_paths,     # -> TargetPaths | None
+)
+
+# 示例：拿到推荐目标后注入
+target = get_recommended_paths()
+if target and target.index.is_file():
+    content = target.index.read_text(encoding="utf-8")
+    # ... 你的注入逻辑
+```
+
+### 适配原理（三层回退）
+
+1. **首选**：`import astrbot_plugin_palette_targets.targets`（附属插件已安装）
+   - 获得与调色盘主插件一致的完整解析（data/dist、bundled、--webui-dir、公开解析器）
+2. **回退 1**：本插件未安装时，客户端文件内置轻量解析
+   - `data/dist`（`get_astrbot_data_path() / "dist"`）
+   - bundled（`get_bundled_dashboard_dist_path()`，4.26+）
+3. **回退 2**：两者都不可用时返回空列表，插件自行处理
+
+所有路径都以字符串/Path 返回，可 JSON 序列化、可读写文件。
+
 ## 说明
 
 - 本插件不修改任何 AstrBot 文件，只做「目标发现」，注入逻辑仍在主插件。
