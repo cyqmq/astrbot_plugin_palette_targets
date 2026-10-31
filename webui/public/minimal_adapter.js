@@ -28,7 +28,7 @@
   // 仅页面可见时轮询（轻量 background-info，几字节）；隐藏时零请求。
   var POLL_INTERVAL_MS = 30000;
 
-  var current = { name: "", primary: "", secondary: "" };
+  var current = { name: "", primary: "", secondary: "", statsCardBlur: "" };
   var pollTimer = null;
   // 收到主文档桥接脚本转发的广播后置为 true，关闭自动轮询（事件驱动）。
   var eventDriven = false;
@@ -44,6 +44,7 @@
     onBackground: "--v-theme-on-background",
     containerBg: "--v-theme-containerBg",
     paletteSurfaceOpacity: "--astrbot-palette-surface-opacity",
+    statsCardBlur: "--astrbot-palette-stats-card-blur",
   };
 
   function applyThemeVars(theme) {
@@ -79,6 +80,7 @@
     current.name = data.name || "";
     current.primary = (data.theme && data.theme.primary) || "";
     current.secondary = (data.theme && data.theme.secondary) || "";
+    current.statsCardBlur = (data.theme && data.theme.statsCardBlur) || "";
     document.documentElement.setAttribute("data-palette-bg", "1");
   }
 
@@ -117,7 +119,8 @@
     return (
       (info.name || "") !== current.name ||
       (theme.primary || "") !== current.primary ||
-      (theme.secondary || "") !== current.secondary
+      (theme.secondary || "") !== current.secondary ||
+      (theme.statsCardBlur || "") !== current.statsCardBlur
     );
   }
 

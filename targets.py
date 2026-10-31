@@ -298,10 +298,10 @@ def get_glass_css() -> str:
 
 
 def get_palette_theme() -> dict:
-    """返回调色盘当前主题色 RGB 三元组（供 iframe 内 CSS 变量使用）。
+    """返回调色盘当前主题色与毛玻璃强度（供 iframe 内 CSS 变量使用）。
 
-    返回 {"primary": "r, g, b", "secondary": "r, g, b"}；
-    未配置时对应值为空串。
+    返回 {"primary": "r, g, b", "secondary": "r, g, b",
+          "statsCardBlur": "Npx"}；未配置时对应值为空串。
     """
 
     def _hex_to_rgb(hexstr: str) -> str:
@@ -317,14 +317,16 @@ def get_palette_theme() -> dict:
     try:
         path = _palette_config_path()
         if path is None or not path.exists():
-            return {"primary": "", "secondary": ""}
+            return {"primary": "", "secondary": "", "statsCardBlur": ""}
         cfg = json.loads(path.read_text(encoding="utf-8-sig"))
+        stats_blur = cfg.get("stats_card_blur", 0)
         return {
             "primary": _hex_to_rgb(cfg.get("theme_primary", "")),
             "secondary": _hex_to_rgb(cfg.get("theme_secondary", "")),
+            "statsCardBlur": f"{int(stats_blur or 0)}px",
         }
     except Exception:
-        return {"primary": "", "secondary": ""}
+        return {"primary": "", "secondary": "", "statsCardBlur": ""}
 
 
 def get_background_info() -> dict:
