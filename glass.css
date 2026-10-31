@@ -8,6 +8,13 @@
  * 因此本文件不写 body background 规则，避免覆盖。
  */
 
+/* Vuetify 应用容器透明，透出 minimal_adapter 设置的 body 壁纸 */
+.v-application,
+.v-main,
+.v-application__wrap {
+  background: transparent !important;
+}
+
 section,
 .card,
 .panel,
