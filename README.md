@@ -255,6 +255,35 @@ cp .../astrbot_plugin_palette_targets/astrbotui.css \
   接入调色盘后毛玻璃效果与原版完全一致；
 - 非强制：插件可以继续保留自己的 `style.css`，本库按需引入。
 
+### 方式 E（进阶）：Vuetify 3 插件视图模板
+
+如果希望插件设置页**本身就是 Vuetify 应用**，与原版 UI 完全一致（组件、
+变量、主题切换原生同步），可以使用本仓库的 `webui/` 模板（参考
+`astrbot_plugin_angel_memory` 的工程结构）：
+
+```
+webui/
+├── package.json          # Vue 3 + Vuetify 3 + Vite
+├── vite.config.js        # 构建输出到 ../pages/<页面名>/
+├── index.html
+└── src/
+    ├── main.js           # createVuetify + data-theme 默认主题
+    ├── App.vue           # 示例页面（MutationObserver 监听 data-theme 切换主题）
+    └── composables/
+        └── useBridge.js  # 封装 window.AstrBotPluginPage（含开发模式回退）
+```
+
+流程：
+1. 复制 `webui/` 到你的插件目录，按需修改 `App.vue` 与 API 端点；
+2. `npm install && npm run build`，产物输出到 `pages/<页面名>/`；
+3. AstrBot 自动发现 `pages/` 下的目录为插件视图，加载时自动注入
+   `/api/plugin/page/bridge-sdk.js`；
+4. 页面内 `window.AstrBotPluginPage` 可用，主题通过
+   `<html data-theme>` 与仪表盘实时同步（亮/暗主题自动切换）。
+
+本仓库已包含构建好的示例页 `pages/vuetify-demo/`，安装本插件后可在
+AstrBot 中打开「vuetify-demo」视图查看效果。
+
 ## 说明
 
 - 本插件不修改任何 AstrBot 文件，只做「目标发现」，注入逻辑仍在主插件。
