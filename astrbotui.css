@@ -32,9 +32,28 @@
   --astrbotui-muted: rgba(var(--v-theme-on-surface), 0.78);
 }
 
-/* 浅色模式（跟随系统）：原版 PurpleTheme */
+/* 浅色模式：AstrBot 官方 data-theme="light"（bridge SDK 实时设置） */
+:root[data-theme="light"] {
+  --v-theme-primary: 60, 150, 202;
+  --v-theme-secondary: 47, 134, 189;
+  --v-theme-darkprimary: 21, 101, 192;
+  --v-theme-darksecondary: 35, 107, 153;
+  --v-theme-surface: 255, 255, 255;
+  --v-theme-on-surface: 27, 28, 29;
+  --v-theme-background: 255, 255, 255;
+  --v-theme-on-background: 27, 28, 29;
+  --v-theme-containerBg: 255, 255, 255;
+  --v-theme-surface-variant: 224, 224, 224;
+  --v-theme-on-surface-variant: 27, 28, 29;
+  --v-theme-outline: 208, 208, 208;
+  --astrbotui-input-border: 120, 120, 120;
+  --astrbotui-border: rgba(var(--v-theme-on-surface), 0.16);
+  --astrbotui-muted: rgba(var(--v-theme-on-surface), 0.78);
+}
+
+/* 降级：无官方 data-theme 时跟随系统浅色偏好 */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --v-theme-primary: 60, 150, 202;
     --v-theme-secondary: 47, 134, 189;
     --v-theme-darkprimary: 21, 101, 192;

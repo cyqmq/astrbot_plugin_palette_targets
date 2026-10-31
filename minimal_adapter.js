@@ -226,6 +226,16 @@
       // 非 AstrBot 插件视图环境：保持插件原样
       return;
     }
+    // 官方机制：Bridge SDK 推送 data-theme / 亮暗主题上下文，
+    // 主题实时切换时重新获取主文档主题变量并检测背景变化。
+    if (typeof bridge.onContext === "function") {
+      bridge.onContext(function (context) {
+        if (context && typeof context.isDark === "boolean") {
+          requestThemeFromParent();
+          checkAndRefresh();
+        }
+      });
+    }
     apiGet(GLASS_ENDPOINT)
       .then(function (data) {
         injectGlass(data && data.css);
