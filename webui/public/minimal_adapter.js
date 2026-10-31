@@ -32,6 +32,8 @@
   var pollTimer = null;
   // 收到主文档桥接脚本转发的广播后置为 true，关闭自动轮询（事件驱动）。
   var eventDriven = false;
+  // 调色盘配置变更监听器（用户可自定义 CSS 注入）。
+  var configListeners = [];
 
   var THEME_VAR_MAP = {
     primary: "--v-theme-primary",
@@ -82,6 +84,7 @@
     current.secondary = (data.theme && data.theme.secondary) || "";
     current.statsCardBlur = (data.theme && data.theme.statsCardBlur) || "";
     document.documentElement.setAttribute("data-palette-bg", "1");
+    notifyConfigChange();
   }
 
   function whenBridge() {
@@ -158,6 +161,35 @@
     }
   }
 
+  // ---------- 调色盘配置事件 API（用户可自定义 CSS 注入） ----------
+  function getConfig() {
+    return {
+      name: current.name,
+      theme: {
+        primary: current.primary,
+        secondary: current.secondary,
+        statsCardBlur: current.statsCardBlur,
+      },
+    };
+  }
+
+  function onConfigChange(callback) {
+    if (typeof callback === "function") {
+      configListeners.push(callback);
+    }
+  }
+
+  function notifyConfigChange() {
+    var cfg = getConfig();
+    for (var i = 0; i < configListeners.length; i++) {
+      try {
+        configListeners[i](cfg);
+      } catch (e) {
+        /* 忽略用户回调异常 */
+      }
+    }
+  }
+
   function handleParentMessage(event) {
     var msg = event.data;
     if (!msg || msg.channel !== MSG_CHANNEL) {
@@ -165,6 +197,7 @@
     }
     if (msg.kind === "theme" && msg.theme) {
       applyThemeVars(msg.theme);
+      notifyConfigChange();
     } else if (msg.kind === "refresh") {
       // 收到广播：关闭自动轮询，事件驱动接管，立即刷新并重新读取主题。
       eventDriven = true;
@@ -247,4 +280,10 @@
     loadBackground().then(schedulePoll);
     requestThemeFromParent();
   });
+
+  // 调色盘配置事件 API：供插件页面自定义 CSS 注入。
+  window.AstrBotPaletteSync = {
+    getConfig: getConfig,
+    onConfigChange: onConfigChange,
+  };
 })();
