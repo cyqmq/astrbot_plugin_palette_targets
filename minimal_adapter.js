@@ -186,6 +186,8 @@
     }
     pollTimer = setTimeout(function poll() {
       checkAndRefresh().then(function () {
+        // 每次轮询顺带刷新原版主题变量（轻量 postMessage）。
+        requestThemeFromParent();
         if (!document.hidden) {
           pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
         } else {
@@ -203,14 +205,16 @@
       }
       return;
     }
-    // 恢复可见：立即检测一次（主插件同款行为），再恢复兜底轮询。
+    // 恢复可见：立即检测背景变化并刷新主题变量，再恢复兜底轮询。
     checkAndRefresh().then(schedulePoll);
+    requestThemeFromParent();
   }
 
   document.addEventListener("visibilitychange", onVisibilityChange);
   window.addEventListener("focus", function () {
     if (!document.hidden) {
       checkAndRefresh().then(schedulePoll);
+      requestThemeFromParent();
     }
   });
 
