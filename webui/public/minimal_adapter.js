@@ -70,14 +70,11 @@
   }
 
   function applyBackground(data) {
-    if (!data || !data.url || !document.body) {
+    if (!data || !data.url) {
       return;
     }
-    document.body.style.backgroundImage = 'url("' + data.url + '")';
-    document.body.style.backgroundSize = "cover";
-    document.body.style.backgroundPosition = "center center";
-    document.body.style.backgroundAttachment = "fixed";
-    document.body.style.backgroundColor = "transparent";
+    // 不设置 iframe 内背景图：保持 iframe 透明，透出主文档壁纸，
+    // 避免出现「两个背景」（主文档一个、设置页一个）。
     applyThemeVars(data.theme);
     current.name = data.name || "";
     current.primary = (data.theme && data.theme.primary) || "";

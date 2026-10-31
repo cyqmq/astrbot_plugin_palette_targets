@@ -8,7 +8,8 @@
  * 因此本文件不写 body background 规则，避免覆盖。
  */
 
-/* Vuetify 应用容器透明，透出 minimal_adapter 设置的 body 壁纸 */
+/* iframe 保持透明，透出主文档壁纸（避免双背景） */
+body,
 .v-application,
 .v-main,
 .v-application__wrap {
