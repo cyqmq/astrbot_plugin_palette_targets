@@ -10,22 +10,19 @@
 
 section,
 .card,
-.panel {
-  background-color: rgba(var(--v-theme-surface, 255 255 255), 0.55) !important;
+.panel,
+.v-card {
+  background-color: rgba(
+    var(--v-theme-surface, 255 255 255),
+    var(--astrbot-palette-surface-opacity, 0.55)
+  ) !important;
   border: 1px solid rgba(var(--v-theme-on-surface, 0 0 0), 0.12) !important;
   border-radius: 10px;
   backdrop-filter: blur(12px) saturate(1.08);
   -webkit-backdrop-filter: blur(12px) saturate(1.08);
 }
 
-/* Vuetify SPA 组件（v-card 等） */
-.v-card {
-  background-color: rgba(var(--v-theme-surface, 255 255 255), 0.55) !important;
-  border: 1px solid rgba(var(--v-theme-on-surface, 0 0 0), 0.12) !important;
-  backdrop-filter: blur(12px) saturate(1.08);
-  -webkit-backdrop-filter: blur(12px) saturate(1.08);
-}
-
+/* Vuetify 卡片内部元素保持透明，透出毛玻璃背景 */
 .v-card-title,
 .v-card-text,
 .v-card-item {
@@ -33,7 +30,10 @@ section,
 }
 
 .v-field {
-  background: rgba(var(--v-theme-background, 255 255 255), 0.7) !important;
+  background: rgba(
+    var(--v-theme-background, 255 255 255),
+    var(--astrbot-palette-surface-opacity, 0.7)
+  ) !important;
   backdrop-filter: blur(8px) saturate(1.05);
   -webkit-backdrop-filter: blur(8px) saturate(1.05);
 }

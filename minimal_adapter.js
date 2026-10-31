@@ -43,6 +43,7 @@
     background: "--v-theme-background",
     onBackground: "--v-theme-on-background",
     containerBg: "--v-theme-containerBg",
+    paletteSurfaceOpacity: "--astrbot-palette-surface-opacity",
   };
 
   function applyThemeVars(theme) {

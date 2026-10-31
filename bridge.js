@@ -72,6 +72,8 @@
       background: read("--v-theme-background"),
       onBackground: read("--v-theme-on-background"),
       containerBg: read("--v-theme-containerBg"),
+      // 调色盘表面透明度（官方卡片全透/半透跟随）
+      paletteSurfaceOpacity: read("--astrbot-palette-surface-opacity"),
     };
   }
 
